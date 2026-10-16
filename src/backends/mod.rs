@@ -60,14 +60,32 @@ pub enum BackendKind {
     Cuda,
 }
 
-pub fn list_devices() -> Vec<String> {
-    #[allow(unused_mut)]
-    let mut out = Vec::new();
-    #[cfg(all(feature = "metal", target_os = "macos"))]
-    out.extend(metal::list_devices().into_iter().map(|n| format!("metal:{n}")));
-    #[cfg(feature = "cuda")]
-    out.extend(cuda::list_devices().into_iter().map(|n| format!("cuda:{n}")));
-    out
+/// Result of looking for devices with one backend.
+pub struct Probe {
+    pub backend: &'static str,
+    /// Device names, or why the backend can't be used.
+    pub devices: Result<Vec<String>, String>,
+}
+
+pub fn probe() -> Vec<Probe> {
+    vec![
+        Probe {
+            backend: "metal",
+            #[cfg(all(feature = "metal", target_os = "macos"))]
+            devices: Ok(metal::list_devices()),
+            #[cfg(all(feature = "metal", not(target_os = "macos")))]
+            devices: Err("macOS only".into()),
+            #[cfg(not(feature = "metal"))]
+            devices: Err("not compiled in (enable the `metal` feature)".into()),
+        },
+        Probe {
+            backend: "cuda",
+            #[cfg(feature = "cuda")]
+            devices: cuda::list_devices().map_err(|e| format!("{e:#}")),
+            #[cfg(not(feature = "cuda"))]
+            devices: Err("not compiled in (rebuild with `--features cuda`)".into()),
+        },
+    ]
 }
 
 #[allow(unused_variables)]

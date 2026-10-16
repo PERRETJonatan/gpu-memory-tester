@@ -2,7 +2,8 @@
 //! runtime, so building this backend does not require the CUDA toolkit.
 
 use super::{Backend, DeviceInfo, Direction, Kernel, build_chase};
-use anyhow::{Context, Result, anyhow};
+use crate::units::fmt_bytes;
+use anyhow::{Context, Result, anyhow, bail};
 use cudarc::driver::sys::{CUdevice_attribute as Attr, CUevent_flags};
 use cudarc::driver::{CudaContext, CudaFunction, CudaSlice, CudaStream, LaunchConfig, PinnedHostSlice, PushKernelArg};
 use cudarc::nvrtc::{CompileOptions, compile_ptx_with_opts};
@@ -59,10 +60,38 @@ extern "C" __global__ void chase(const unsigned int* next, unsigned int* out, un
 }
 "#;
 
-pub fn list_devices() -> Vec<String> {
-    let Ok(count) = CudaContext::device_count() else { return Vec::new() };
+/// cudarc panics if a library is missing, so check before any call into it.
+fn ensure_driver() -> Result<()> {
+    if unsafe { cudarc::driver::sys::is_culib_present() } {
+        Ok(())
+    } else {
+        bail!(
+            "NVIDIA driver library (libcuda.so / nvcuda.dll) not found. \
+             Is an NVIDIA GPU present with the proprietary driver installed? (check `nvidia-smi`)"
+        )
+    }
+}
+
+fn ensure_nvrtc() -> Result<()> {
+    if unsafe { cudarc::nvrtc::sys::is_culib_present() } {
+        Ok(())
+    } else {
+        bail!(
+            "NVRTC library (libnvrtc.so.12 / nvrtc64_12*.dll) not found; it is needed to compile the kernels. \
+             Install the CUDA 12 toolkit or runtime (e.g. `cuda-nvrtc-12-x`, or `pip install nvidia-cuda-nvrtc-cu12`) \
+             and make sure its lib directory is on LD_LIBRARY_PATH"
+        )
+    }
+}
+
+pub fn list_devices() -> Result<Vec<String>> {
+    ensure_driver()?;
+    let count = CudaContext::device_count().context("CUDA driver failed to initialize")?;
     (0..count as usize)
-        .filter_map(|i| CudaContext::new(i).ok()?.name().ok())
+        .map(|i| {
+            let ctx = CudaContext::new(i)?;
+            Ok(format!("{} ({})", ctx.name()?, fmt_bytes(ctx.total_mem()?)))
+        })
         .collect()
 }
 
@@ -84,6 +113,12 @@ pub struct CudaBackend {
 
 impl CudaBackend {
     pub fn new(ordinal: usize) -> Result<Self> {
+        ensure_driver()?;
+        ensure_nvrtc()?;
+        let count = CudaContext::device_count().context("CUDA driver failed to initialize")?;
+        if count == 0 {
+            bail!("the CUDA driver reports no devices");
+        }
         let ctx = CudaContext::new(ordinal).context("failed to open CUDA device")?;
         let stream = ctx.default_stream();
 

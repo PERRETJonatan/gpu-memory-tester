@@ -90,12 +90,21 @@ fn real_main() -> Result<()> {
     let cli = Cli::parse();
 
     if cli.list {
-        let devices = backends::list_devices();
-        if devices.is_empty() {
-            println!("No GPU devices found.");
+        let mut found = false;
+        for p in backends::probe() {
+            match p.devices {
+                Ok(devs) if devs.is_empty() => println!("{}: no devices", p.backend),
+                Ok(devs) => {
+                    found = true;
+                    for (i, d) in devs.iter().enumerate() {
+                        println!("{}:{i}  {d}", p.backend);
+                    }
+                }
+                Err(e) => println!("{}: unavailable - {e}", p.backend),
+            }
         }
-        for d in devices {
-            println!("{d}");
+        if !found {
+            println!("\nNo usable GPU found. NVIDIA (CUDA) and Apple (Metal) GPUs are supported.");
         }
         return Ok(());
     }

@@ -20,12 +20,18 @@ Bandwidth is decimal GB/s (1e9 B/s). Each sample sweeps the buffer enough times 
 ## Build
 
 ```sh
-cargo build --release                       # Metal (default on macOS)
-cargo build --release --no-default-features --features cuda   # CUDA (Linux/Windows)
+cargo build --release
 ```
 
-The CUDA backend loads the driver and NVRTC dynamically at runtime, so no CUDA toolkit
-is needed to compile — only an NVIDIA driver + NVRTC library (CUDA 12.x) to run.
+The same command works on every OS: Metal is used on macOS, CUDA wherever an NVIDIA
+driver is present. CUDA is loaded at runtime, so no CUDA toolkit is needed to compile.
+
+To **run** the CUDA backend you need:
+- the NVIDIA proprietary driver (`nvidia-smi` should work), which provides `libcuda.so`;
+- NVRTC from CUDA 12.x (`libnvrtc.so.12`), e.g. the `cuda-nvrtc-12-x` package or
+  `pip install nvidia-cuda-nvrtc-cu12`, with its lib directory on `LD_LIBRARY_PATH`.
+
+Run `gpu-memory-tester --list` to see which backends are usable and why not.
 
 ## Usage
 

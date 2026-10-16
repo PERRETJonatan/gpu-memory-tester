@@ -7,7 +7,8 @@ license = "MIT"
 repository = "https://github.com/PERRETJonatan/gpu-memory-tester"
 
 [features]
-default = ["metal"]
+# Both build on every OS: Metal is a no-op off macOS, CUDA is loaded at runtime.
+default = ["metal", "cuda"]
 metal = ["dep:metal"]
 cuda = ["dep:cudarc"]
 

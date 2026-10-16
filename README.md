@@ -39,3 +39,14 @@ gpu-memory-tester -b cuda -d 1             # backend/device selection
 ```
 
 See `--help` for `--iterations`, `--threads`, `--latency-steps`, `--latency-stride`, `--target`.
+
+## What it does (and doesn't)
+
+The tool only allocates GPU/host buffers, runs the benchmark kernels shown in
+`src/backends/`, and prints results to stdout. It does not access the network, read or
+write files, spawn processes, or need elevated privileges. Memory use is bounded by the
+chosen buffer size (default 1 GiB, capped to 1/4 of device memory).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
